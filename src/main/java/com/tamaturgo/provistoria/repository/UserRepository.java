@@ -3,6 +3,7 @@ package com.tamaturgo.provistoria.repository;
 import com.tamaturgo.provistoria.models.User;
 import org.jooq.*;
 import org.springframework.stereotype.Repository;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -67,6 +68,12 @@ public class UserRepository {
     public Optional<User> findByEmail(String email) {
         return dsl.selectFrom(USERS)
                 .where(USERS.EMAIL.eq(email))
+                .fetchOptionalInto(User.class);
+    }
+
+    public Optional<User> findBySub(String sub) {
+        return dsl.selectFrom(USERS)
+                .where(USERS.SUB.eq(UUID.fromString(sub)))
                 .fetchOptionalInto(User.class);
     }
 }

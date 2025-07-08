@@ -1,6 +1,5 @@
 package com.tamaturgo.provistoria.dto.user;
 
-import java.time.Instant;
 import java.util.UUID;
 
 public record UserResponse(
@@ -11,7 +10,10 @@ public record UserResponse(
         String status,
         String role,
         String createdAt,
-        String updatedAt
+        String updatedAt,
+        String accessToken,
+        String refreshToken,
+        long expiresAt
 ) {
 
     public static UserResponseBuilder builder() {
@@ -27,6 +29,9 @@ public record UserResponse(
         private String role;
         private String createdAt;
         private String updatedAt;
+        private String accessToken;
+        private String refreshToken;
+        private long expiresAt;
 
         public UserResponseBuilder id(UUID id) {
             this.id = id;
@@ -67,9 +72,21 @@ public record UserResponse(
             this.updatedAt = updatedAt;
             return this;
         }
+        public UserResponseBuilder accessToken(String accessToken) {
+            this.accessToken = accessToken;
+            return this;
+        }
+        public UserResponseBuilder refreshToken(String refreshToken) {
+            this.refreshToken = refreshToken;
+            return this;
+        }
+        public UserResponseBuilder expiresAt(long expiresAt) {
+            this.expiresAt = expiresAt;
+            return this;
+        }
 
         public UserResponse build() {
-            return new UserResponse(id, email, fullName, officeName, status, role, createdAt, updatedAt);
+            return new UserResponse(id, email, fullName, officeName, status, role, createdAt, updatedAt, accessToken, refreshToken, expiresAt);
         }
     }
 }

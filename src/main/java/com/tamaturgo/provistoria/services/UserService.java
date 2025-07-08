@@ -1,16 +1,12 @@
 package com.tamaturgo.provistoria.services;
 
 import com.auth0.jwt.JWT;
-import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tamaturgo.provistoria.dto.user.LoginRequest;
-import com.tamaturgo.provistoria.dto.user.RegisterRequest;
-import com.tamaturgo.provistoria.dto.user.SupabaseUserResponse;
-import com.tamaturgo.provistoria.dto.user.UserResponse;
+import com.tamaturgo.provistoria.dto.user.*;
 import com.tamaturgo.provistoria.models.User;
 import com.tamaturgo.provistoria.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -68,7 +64,13 @@ public class UserService {
             user.setRole("ENGINEER");
 
             User savedUser = userRepository.save(user);
-            return mapToUserResponse(savedUser);
+
+            // Faz login para obter o token JWT
+            SupabaseLoginResponse loginResponse = loginSupabaseUser(request.email(), request.password());
+            if (loginResponse == null || loginResponse.user == null) {
+                throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "Usuário ou senha inválidos");
+            }
+            return mapToUserResponse(savedUser, loginResponse.accessToken, loginResponse.refreshToken, loginResponse.expiresAt);
 
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Erro ao processar resposta do Supabase", e);
@@ -82,11 +84,26 @@ public class UserService {
     }
 
     // ========== AUTENTICAÇÃO ==========
-    public String authenticateUser(LoginRequest request) {
+    public UserResponse authenticateUser(LoginRequest request) {
         try {
-            String token = loginSupabaseUser(request.email(), request.password());
+            SupabaseLoginResponse response = loginSupabaseUser(request.email(), request.password());
+            if (response == null || response.user == null) {
+                throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "Usuário ou senha inválidos");
+            }
+            String token = response.accessToken;
             verifyJwtToken(token);
-            return token;
+
+            User user = userRepository.findBySub(String.valueOf(UUID.fromString(response.user.id)))
+                    .orElseThrow(() -> new HttpClientErrorException(
+                            HttpStatus.UNAUTHORIZED,
+                            "Usuário não encontrado"
+                    ));
+
+            return mapToUserResponse(user,
+                    response.accessToken,
+                    response.refreshToken,
+                    response.expiresAt);
+
         } catch (HttpClientErrorException e) {
             throw new HttpClientErrorException(
                     e.getStatusCode(),
@@ -117,7 +134,7 @@ public class UserService {
         return response.getBody();
     }
 
-    private String loginSupabaseUser(String email, String password) {
+    private SupabaseLoginResponse loginSupabaseUser(String email, String password) {
         String body = String.format("""
         {
           "email": "%s",
@@ -134,7 +151,17 @@ public class UserService {
                 String.class
         );
 
-        return response.getBody();
+        if (response.getStatusCode() != HttpStatus.OK) {
+            throw new HttpClientErrorException(
+                    response.getStatusCode(),
+                    "Falha ao autenticar usuário no Supabase: " + response.getBody()
+            );
+        }
+        try {
+            return objectMapper.readValue(response.getBody(), SupabaseLoginResponse.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Erro ao processar resposta de login do Supabase", e);
+        }
     }
 
     // ========== GERENCIAMENTO DE TOKENS JWT ==========
@@ -148,11 +175,12 @@ public class UserService {
                 .sign(Algorithm.HMAC256(jwtSecret));
     }
 
-    public DecodedJWT verifyJwtToken(String token) {
+    public String verifyJwtToken(String token) {
         try {
-            JWTVerifier verifier = JWT.require(Algorithm.HMAC256(jwtSecret))
-                    .build();
-            return verifier.verify(token);
+            DecodedJWT jwt = JWT.require(Algorithm.HMAC256(jwtSecret))
+                    .build()
+                    .verify(token);
+            return jwt.getSubject(); // sub do JWT
         } catch (JWTVerificationException e) {
             throw new HttpClientErrorException(
                     HttpStatus.UNAUTHORIZED,
@@ -161,6 +189,7 @@ public class UserService {
         }
     }
 
+
     // ========== OPERAÇÕES DE USUÁRIO ==========
     public UserResponse getUserById(UUID id) {
         User user = userRepository.findById(id)
@@ -168,12 +197,13 @@ public class UserService {
                         HttpStatus.NOT_FOUND,
                         "Usuário não encontrado"
                 ));
-        return mapToUserResponse(user);
+        return mapToUserResponseWithoutToken(user);
     }
+
 
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
-                .map(this::mapToUserResponse)
+                .map(this::mapToUserResponseWithoutToken)
                 .collect(Collectors.toList());
     }
 
@@ -188,7 +218,7 @@ public class UserService {
         user.setOfficeName(request.officeName());
 
         User updatedUser = userRepository.save(user);
-        return mapToUserResponse(updatedUser);
+        return mapToUserResponseWithoutToken(updatedUser);
     }
 
     public void deleteUser(UUID id) {
@@ -211,7 +241,25 @@ public class UserService {
     }
 
 
-    private UserResponse mapToUserResponse(User user) {
+
+    private UserResponse mapToUserResponse(User user, String accessToken, String refreshToken, long expiresAt) {
+        return UserResponse.builder()
+                .id(user.getSub())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .officeName(user.getOfficeName())
+                .status(user.getStatus())
+                .role(user.getRole())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .expiresAt(expiresAt)
+                .build();
+    }
+
+
+    private UserResponse mapToUserResponseWithoutToken(User user) {
         return UserResponse.builder()
                 .id(user.getSub())
                 .email(user.getEmail())
