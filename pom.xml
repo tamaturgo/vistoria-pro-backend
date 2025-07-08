@@ -120,7 +120,7 @@
 			<plugin>
 				<groupId>org.jooq</groupId>
 				<artifactId>jooq-codegen-maven</artifactId>
-				<version>3.20.5</version>
+				<version>3.17.28</version>
 
 				<executions>
 					<execution>
@@ -145,7 +145,7 @@
 						<driver>org.postgresql.Driver</driver>
 						<url>jdbc:postgresql://db.qybxjwdpabbgtucxpdau.supabase.co:5432/postgres</url>
 						<user>postgres</user>
-						<password>${db.password}</password>
+						<password></password>
 					</jdbc>
 
 					<generator>
@@ -162,6 +162,9 @@
 							<packageName>com.tamaturgo.jooq.generated</packageName>
 							<directory>${project.build.directory}/generated-sources/jooq</directory>
 						</target>
+						<generate>
+							<jooqVersionReference>false</jooqVersionReference>
+						</generate>
 					</generator>
 				</configuration>
 			</plugin>
