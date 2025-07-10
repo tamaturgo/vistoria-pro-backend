@@ -12,7 +12,7 @@ public class JwtValidator {
     public JwtValidator(String secret) {
         Algorithm algorithm = Algorithm.HMAC256(secret);
         verifier = JWT.require(algorithm)
-                .withIssuer("supabase")
+                .withIssuer("https://qybxjwdpabbgtucxpdau.supabase.co/auth/v1")
                 .build();
     }
 
