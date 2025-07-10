@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tamaturgo.provistoria.dto.user.*;
 import com.tamaturgo.provistoria.models.User;
 import com.tamaturgo.provistoria.repository.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class UserService {
 
@@ -49,11 +51,13 @@ public class UserService {
 
     // ========== CRIAÇÃO DE USUÁRIO ==========
     public UserResponse registerUser(RegisterRequest request) {
+        log.info("Iniciando criação de usuário: {}", request.email());
         validateEmailNotExists(request.email());
 
         try {
             String supabaseResponseJson = createSupabaseUser(request.email(), request.password());
             SupabaseUserResponse userResp = objectMapper.readValue(supabaseResponseJson, SupabaseUserResponse.class);
+            log.info("Usuário criado no Supabase: {}", userResp.email);
 
             User user = new User();
             user.setSub(UUID.fromString(userResp.identities.getFirst().user_id));
@@ -64,7 +68,7 @@ public class UserService {
             user.setRole("ENGINEER");
 
             User savedUser = userRepository.save(user);
-
+            log.info("Usuário salvo no banco de dados: {}", savedUser.getEmail());
             // Faz login para obter o token JWT
             SupabaseLoginResponse loginResponse = loginSupabaseUser(request.email(), request.password());
             if (loginResponse == null || loginResponse.user == null) {
@@ -79,15 +83,18 @@ public class UserService {
 
     private void validateEmailNotExists(String email) {
         if (userRepository.existsByEmail(email)) {
-            throw new HttpClientErrorException(HttpStatusCode.valueOf(409), "Email já cadastrado");
+            log.warn("Tentativa de registro com email já existente: {}", email);
+            throw new HttpClientErrorException(HttpStatus.CONFLICT, "Email já cadastrado");
         }
     }
 
     // ========== AUTENTICAÇÃO ==========
     public UserResponse authenticateUser(LoginRequest request) {
+        log.info("Iniciando autenticação do usuário: {}", request.email());
         try {
             SupabaseLoginResponse response = loginSupabaseUser(request.email(), request.password());
             if (response == null || response.user == null) {
+                log.warn("Falha na autenticação: usuário ou senha inválidos");
                 throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "Usuário ou senha inválidos");
             }
             String token = response.accessToken;
@@ -98,6 +105,7 @@ public class UserService {
                             HttpStatus.UNAUTHORIZED,
                             "Usuário não encontrado"
                     ));
+            log.info("Usuário autenticado com sucesso: {}", user.getEmail());
 
             return mapToUserResponse(user,
                     response.accessToken,
@@ -105,6 +113,7 @@ public class UserService {
                     response.expiresAt);
 
         } catch (HttpClientErrorException e) {
+            log.error("Erro na autenticação: {}", e.getMessage());
             throw new HttpClientErrorException(
                     e.getStatusCode(),
                     "Falha na autenticação: " + e.getResponseBodyAsString()
@@ -152,6 +161,7 @@ public class UserService {
         );
 
         if (response.getStatusCode() != HttpStatus.OK) {
+            log.error("Erro ao autenticar usuário no Supabase: {}", response.getBody());
             throw new HttpClientErrorException(
                     response.getStatusCode(),
                     "Falha ao autenticar usuário no Supabase: " + response.getBody()
@@ -160,6 +170,7 @@ public class UserService {
         try {
             return objectMapper.readValue(response.getBody(), SupabaseLoginResponse.class);
         } catch (JsonProcessingException e) {
+            log.error("Erro ao processar resposta de login do Supabase: {}", e.getMessage());
             throw new RuntimeException("Erro ao processar resposta de login do Supabase", e);
         }
     }
@@ -182,6 +193,7 @@ public class UserService {
                     .verify(token);
             return jwt.getSubject(); // sub do JWT
         } catch (JWTVerificationException e) {
+            log.error("Token JWT inválido ou expirado: {}", e.getMessage());
             throw new HttpClientErrorException(
                     HttpStatus.UNAUTHORIZED,
                     "Token JWT inválido ou expirado: " + e.getMessage()
@@ -192,6 +204,7 @@ public class UserService {
 
     // ========== OPERAÇÕES DE USUÁRIO ==========
     public UserResponse getUserById(UUID id) {
+        log.info("Recuperando usuário com ID: {}", id);
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new HttpClientErrorException(
                         HttpStatus.NOT_FOUND,
@@ -202,12 +215,14 @@ public class UserService {
 
 
     public List<UserResponse> getAllUsers() {
+        log.info("Recuperando todos os usuários");
         return userRepository.findAll().stream()
                 .map(this::mapToUserResponseWithoutToken)
                 .collect(Collectors.toList());
     }
 
     public UserResponse updateUser(UUID id, RegisterRequest request) {
+        log.info("Atualizando usuário {} com ID: {}", request.email(), id);
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new HttpClientErrorException(
                         HttpStatus.NOT_FOUND,
@@ -222,6 +237,7 @@ public class UserService {
     }
 
     public void deleteUser(UUID id) {
+        log.info("Deletando usuário com ID: {}", id);
         if (!userRepository.existsById(id)) {
             throw new HttpClientErrorException(
                     HttpStatus.NOT_FOUND,
@@ -269,6 +285,34 @@ public class UserService {
                 .role(user.getRole())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
+                .build();
+    }
+
+    public UserMeResponse getCurrentUser(String authorizationHeader) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            log.error("Token JWT não fornecido ou inválido");
+            throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "Token JWT não fornecido");
+        }
+
+        String token = authorizationHeader.substring(7);
+        String sub = verifyJwtToken(token);
+        log.info("Recuperando usuário com sub: {}", sub);
+        User user = userRepository.findBySub(sub)
+                .orElseThrow(() -> new HttpClientErrorException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Usuário não encontrado"
+                ));
+
+        return mapToUserMeResponse(user);
+    }
+
+    private UserMeResponse mapToUserMeResponse(User user) {
+        return UserMeResponse.builder()
+                .id(user.getSub())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .officeName(user.getOfficeName())
+                .status(user.getStatus())
                 .build();
     }
 }
