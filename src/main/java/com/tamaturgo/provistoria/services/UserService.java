@@ -84,7 +84,7 @@ public class UserService {
     private void validateEmailNotExists(String email) {
         if (userRepository.existsByEmail(email)) {
             log.warn("Tentativa de registro com email já existente: {}", email);
-            throw new HttpClientErrorException(HttpStatusCode.valueOf(409), "Email já cadastrado");
+            throw new HttpClientErrorException(HttpStatus.CONFLICT, "Email já cadastrado");
         }
     }
 
