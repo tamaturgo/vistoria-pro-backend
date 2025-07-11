@@ -90,7 +90,9 @@ public class InspectionRepository {
                         ))
                         .toList();
 
-                assert checklistRecord != null;
+                if (checklistRecord == null) {
+                    throw new IllegalStateException("Checklist record not found for checklist ID: " + checklistId);
+                }
                 return new ChecklistResponse(
                         checklistRecord.getId(),
                         checklistRecord.getName(),
