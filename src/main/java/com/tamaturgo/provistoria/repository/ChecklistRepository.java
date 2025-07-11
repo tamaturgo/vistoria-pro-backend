@@ -31,14 +31,14 @@ public class ChecklistRepository {
     }
 
     public void insertChecklistItems(UUID checklistId, List<UUID> itemIds) {
-        int index = 0;
-        for (UUID itemId : itemIds) {
-            dsl.insertInto(CHECKLIST_ITEMS_CHECKLIST)
-                    .set(CHECKLIST_ITEMS_CHECKLIST.CHECKLIST_ID, checklistId)
-                    .set(CHECKLIST_ITEMS_CHECKLIST.CHECKLIST_ITEM_ID, itemId)
-                    .set(CHECKLIST_ITEMS_CHECKLIST.ORDER_INDEX, index++)
-                    .execute();
-        }
+        List<org.jooq.Query> batchQueries = dsl.batchInsert(
+            itemIds.stream()
+                    .map((itemId, index) -> dsl.insertInto(CHECKLIST_ITEMS_CHECKLIST)
+                        .set(CHECKLIST_ITEMS_CHECKLIST.CHECKLIST_ID, checklistId)
+                        .set(CHECKLIST_ITEMS_CHECKLIST.CHECKLIST_ITEM_ID, itemId)
+                        .set(CHECKLIST_ITEMS_CHECKLIST.ORDER_INDEX, index))
+                    .toList()
+        ).execute();
     }
 
     public List<ChecklistItemSummary> findItemSummariesByIds(List<UUID> ids) {
