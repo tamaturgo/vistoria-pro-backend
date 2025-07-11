@@ -46,9 +46,10 @@ public class UserService {
         validateEmailNotExists(request.email());
 
         try {
+            log.info("Enviando requisição para criar usuário no Supabase: {}", request.email());
             String supabaseResponseJson = createSupabaseUser(request.email(), request.password());
             SupabaseUserResponse userResp = objectMapper.readValue(supabaseResponseJson, SupabaseUserResponse.class);
-            log.info("Usuário criado no Supabase: {}", userResp.email);
+            log.info("Usuário criado no Supabase com ID: {}", userResp.id);
 
             User user = new User();
             user.setSub(UUID.fromString(userResp.identities.getFirst().user_id));
@@ -68,7 +69,8 @@ public class UserService {
             return mapToUserResponse(savedUser, loginResponse.accessToken, loginResponse.refreshToken, loginResponse.expiresAt);
 
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Erro ao processar resposta do Supabase", e);
+            log.error("Erro ao processar resposta do Supabase para usuário {}: {}", request.email(), e.getMessage());
+            throw new RuntimeException("Erro ao criar usuário: " + e.getMessage());
         }
     }
 

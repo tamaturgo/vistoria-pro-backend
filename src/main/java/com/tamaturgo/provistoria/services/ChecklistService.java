@@ -23,20 +23,27 @@ public class ChecklistService {
     private final ChecklistRepository checklistRepository;
 
     public ChecklistResponse createChecklist(CreateChecklistRequest request, String token) {
+        log.info("Iniciando criação de checklist: {} para usuário token: {}", request.name(), token);
         User user = authenticatedUserProvider.getUserFromAuthorization(token);
         UUID checklistId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.now();
 
         checklistRepository.insertChecklist(checklistId, user.getId(), request.name(), now);
+        log.info("Checklist criado com ID: {} para usuário: {}", checklistId, user.getId());
         checklistRepository.insertChecklistItems(checklistId, request.itemIds());
+        log.info("Itens adicionados ao checklist: {} - Itens: {}", checklistId, request.itemIds());
 
         List<ChecklistItemSummary> items = checklistRepository.findItemSummariesByIds(request.itemIds());
+        log.info("Resumo dos itens do checklist recuperado: {}", items.size());
 
         return new ChecklistResponse(checklistId, request.name(), now, items);
     }
 
     public List<ChecklistResponse> listChecklists(String token) {
+        log.info("Listando checklists para usuário do token: {}", token);
         User user = authenticatedUserProvider.getUserFromAuthorization(token);
-        return checklistRepository.findChecklistsByUserId(user.getId());
+        List<ChecklistResponse> checklists = checklistRepository.findChecklistsByUserId(user.getId());
+        log.info("{} checklists encontrados para usuário: {}", checklists.size(), user.getId());
+        return checklists;
     }
 }
