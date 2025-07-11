@@ -27,22 +27,28 @@ public class PropertyService {
 
 
     public PropertyResponse createProperty(PropertyRequest request, String authorization) {
-        log.info("Iniciando criação de propriedade: {}", request.name());
+        log.info("Iniciando criação de propriedade: {} para cliente: {}", request.name(), request.client().email());
         Client client = clientRepository.findByEmail(request.client().email())
                 .orElseGet(() -> {
+                    log.info("Cliente não encontrado, criando novo cliente: {}", request.client().email());
                     Client newClient = new Client();
                     newClient.setName(request.client().name());
                     newClient.setEmail(request.client().email());
-                    return clientRepository.save(newClient);
+                    Client savedClient = clientRepository.save(newClient);
+                    log.info("Novo cliente criado com ID: {}", savedClient.getId());
+                    return savedClient;
                 });
 
         User user = authenticatedUserProvider.getUserFromAuthorization(authorization);
+        log.info("Usuário autenticado: {}", user.getId());
 
         boolean alreadyLinked = userClientRepository.existsByUserIdAndClientId(user.getSub(), client.getId());
 
         if (!alreadyLinked) {
             log.info("Associando usuário {} com cliente {}", user.getId(), client.getId());
             userClientRepository.save(new UserClient(user.getId(), client.getId()));
+        } else {
+            log.info("Usuário {} já está associado ao cliente {}", user.getId(), client.getId());
         }
 
         Property property = new Property();
