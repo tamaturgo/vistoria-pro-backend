@@ -50,6 +50,7 @@ public class PropertyService {
         property.setBlock(request.block());
         property.setTower(request.tower());
         property.setTags(request.tags());
+        property.setClientId(client.getId());
 
         Property saved = propertyRepository.save(property);
 

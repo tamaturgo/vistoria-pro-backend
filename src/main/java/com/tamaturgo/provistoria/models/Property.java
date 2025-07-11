@@ -16,6 +16,7 @@ public class Property {
     private String type;
     private String block;
     private String tower;
+    private UUID clientId;
     private List<String> tags;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
