@@ -2,6 +2,8 @@ package com.tamaturgo.provistoria.repository;
 
 
 import com.tamaturgo.provistoria.dto.checklist.ChecklistItemSummary;
+import com.tamaturgo.provistoria.dto.checklist.ChecklistResponse;
+import com.tamaturgo.provistoria.dto.checklist.ChecklistSimple;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.springframework.stereotype.Repository;
@@ -48,5 +50,40 @@ public class ChecklistRepository {
                         record.get(CHECKLIST_ITEM.NAME)
                 ));
     }
+
+    public List<ChecklistItemSummary> findItemSummariesByChecklistId(UUID checklistId) {
+        return dsl.select(CHECKLIST_ITEM.ID, CHECKLIST_ITEM.NAME)
+                .from(CHECKLIST_ITEMS_CHECKLIST)
+                .join(CHECKLIST_ITEM).on(CHECKLIST_ITEMS_CHECKLIST.CHECKLIST_ITEM_ID.eq(CHECKLIST_ITEM.ID))
+                .where(CHECKLIST_ITEMS_CHECKLIST.CHECKLIST_ID.eq(checklistId))
+                .fetch(record -> new ChecklistItemSummary(
+                        record.get(CHECKLIST_ITEM.ID),
+                        record.get(CHECKLIST_ITEM.NAME)
+                ));
+    }
+
+    public List<ChecklistResponse> findChecklistsByUserId(UUID userId) {
+        List<ChecklistSimple> checklists = dsl.select(
+                        CHECKLIST.ID,
+                        CHECKLIST.NAME,
+                        CHECKLIST.CREATED_AT
+                )
+                .from(CHECKLIST)
+                .where(CHECKLIST.USER_ID.eq(userId))
+                .orderBy(CHECKLIST.CREATED_AT.desc())
+                .fetch(record -> new ChecklistSimple(
+                        record.get(CHECKLIST.ID),
+                        record.get(CHECKLIST.NAME),
+                        record.get(CHECKLIST.CREATED_AT)
+                ));
+
+        return checklists.stream()
+                .map(c -> {
+                    List<ChecklistItemSummary> items = findItemSummariesByChecklistId(c.id());
+                    return new ChecklistResponse(c.id(), c.name(), c.createdAt(), items);
+                })
+                .toList();
+    }
+
 
 }

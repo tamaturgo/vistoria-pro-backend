@@ -34,4 +34,9 @@ public class ChecklistService {
 
         return new ChecklistResponse(checklistId, request.name(), now, items);
     }
+
+    public List<ChecklistResponse> listChecklists(String token) {
+        User user = authenticatedUserProvider.getUserFromAuthorization(token);
+        return checklistRepository.findChecklistsByUserId(user.getId());
+    }
 }

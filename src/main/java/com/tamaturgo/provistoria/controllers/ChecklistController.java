@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/checklists")
 @RequiredArgsConstructor
@@ -23,6 +25,15 @@ public class ChecklistController {
         Thread.currentThread().setName("ChecklistController.createChecklist " + System.currentTimeMillis());
         ChecklistResponse response = checklistService.createChecklist(request, token);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<ChecklistResponse>> listChecklists(
+            @RequestHeader("Authorization") String token
+    ) {
+        Thread.currentThread().setName("ChecklistController.listChecklists " + System.currentTimeMillis());
+        List<ChecklistResponse> checklists = checklistService.listChecklists(token);
+        return ResponseEntity.ok(checklists);
     }
 
 }
