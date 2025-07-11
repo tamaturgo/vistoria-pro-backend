@@ -1,5 +1,7 @@
 package com.tamaturgo.provistoria.dto.user;
 
+import com.tamaturgo.provistoria.models.User;
+
 import java.util.UUID;
 
 public record UserMeResponse(

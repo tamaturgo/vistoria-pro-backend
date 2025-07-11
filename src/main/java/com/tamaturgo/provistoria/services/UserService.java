@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tamaturgo.provistoria.dto.user.*;
 import com.tamaturgo.provistoria.models.User;
 import com.tamaturgo.provistoria.repository.UserRepository;
+import com.tamaturgo.provistoria.security.AuthenticatedUserProvider;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -16,13 +18,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class UserService {
 
     @Value("${supabase.api.url}")
@@ -31,23 +33,12 @@ public class UserService {
     @Value("${supabase.api.key}")
     private String apiKey;
 
-    @Value("${supabase.jwt.secret}")
-    private String jwtSecret;
-
-    @Value("${jwt.expiration.time}")
-    private long jwtExpirationTime;
 
     private final RestTemplate restTemplate;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
-
-    public UserService(RestTemplate restTemplate,
-                       UserRepository userRepository,
-                       ObjectMapper objectMapper) {
-        this.restTemplate = restTemplate;
-        this.userRepository = userRepository;
-        this.objectMapper = objectMapper;
-    }
+    private final JwtService jwtService;
+    private final AuthenticatedUserProvider authenticatedUserProvider;
 
     // ========== CRIAÇÃO DE USUÁRIO ==========
     public UserResponse registerUser(RegisterRequest request) {
@@ -98,7 +89,7 @@ public class UserService {
                 throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "Usuário ou senha inválidos");
             }
             String token = response.accessToken;
-            verifyJwtToken(token);
+            jwtService.verify(token);
 
             User user = userRepository.findBySub(String.valueOf(UUID.fromString(response.user.id)))
                     .orElseThrow(() -> new HttpClientErrorException(
@@ -174,33 +165,6 @@ public class UserService {
             throw new RuntimeException("Erro ao processar resposta de login do Supabase", e);
         }
     }
-
-    // ========== GERENCIAMENTO DE TOKENS JWT ==========
-    public String generateJwtToken(User user) {
-        return JWT.create()
-                .withSubject(user.getSub().toString())
-                .withClaim("email", user.getEmail())
-                .withClaim("role", user.getRole())
-                .withIssuedAt(new Date())
-                .withExpiresAt(new Date(System.currentTimeMillis() + jwtExpirationTime))
-                .sign(Algorithm.HMAC256(jwtSecret));
-    }
-
-    public String verifyJwtToken(String token) {
-        try {
-            DecodedJWT jwt = JWT.require(Algorithm.HMAC256(jwtSecret))
-                    .build()
-                    .verify(token);
-            return jwt.getSubject(); // sub do JWT
-        } catch (JWTVerificationException e) {
-            log.error("Token JWT inválido ou expirado: {}", e.getMessage());
-            throw new HttpClientErrorException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Token JWT inválido ou expirado: " + e.getMessage()
-            );
-        }
-    }
-
 
     // ========== OPERAÇÕES DE USUÁRIO ==========
     public UserResponse getUserById(UUID id) {
@@ -289,22 +253,10 @@ public class UserService {
     }
 
     public UserMeResponse getCurrentUser(String authorizationHeader) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            log.error("Token JWT não fornecido ou inválido");
-            throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "Token JWT não fornecido");
-        }
-
-        String token = authorizationHeader.substring(7);
-        String sub = verifyJwtToken(token);
-        log.info("Recuperando usuário com sub: {}", sub);
-        User user = userRepository.findBySub(sub)
-                .orElseThrow(() -> new HttpClientErrorException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Usuário não encontrado"
-                ));
-
+        User user = authenticatedUserProvider.getUserFromAuthorization(authorizationHeader);
         return mapToUserMeResponse(user);
     }
+
 
     private UserMeResponse mapToUserMeResponse(User user) {
         return UserMeResponse.builder()
