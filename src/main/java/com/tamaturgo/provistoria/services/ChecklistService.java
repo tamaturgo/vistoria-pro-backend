@@ -23,8 +23,8 @@ public class ChecklistService {
     private final ChecklistRepository checklistRepository;
 
     public ChecklistResponse createChecklist(CreateChecklistRequest request, String token) {
-        log.info("Iniciando criação de checklist: {} para usuário token: {}", request.name(), token);
         User user = authenticatedUserProvider.getUserFromAuthorization(token);
+        log.info("Iniciando criação de checklist: {} para usuário ID: {}", request.name(), user.getId());
         UUID checklistId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.now();
 
