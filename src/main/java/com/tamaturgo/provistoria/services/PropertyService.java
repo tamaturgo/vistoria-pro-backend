@@ -12,10 +12,12 @@ import com.tamaturgo.provistoria.repository.PropertyRepository;
 import com.tamaturgo.provistoria.repository.UserClientRepository;
 import com.tamaturgo.provistoria.security.AuthenticatedUserProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @RequiredArgsConstructor
 @Service
+@Slf4j
 public class PropertyService {
 
     private final ClientRepository clientRepository;
@@ -25,6 +27,7 @@ public class PropertyService {
 
 
     public PropertyResponse createProperty(PropertyRequest request, String authorization) {
+        log.info("Iniciando criação de propriedade: {}", request.name());
         Client client = clientRepository.findByEmail(request.client().email())
                 .orElseGet(() -> {
                     Client newClient = new Client();
@@ -38,7 +41,8 @@ public class PropertyService {
         boolean alreadyLinked = userClientRepository.existsByUserIdAndClientId(user.getSub(), client.getId());
 
         if (!alreadyLinked) {
-            userClientRepository.save(new UserClient(user.getSub(), client.getId()));
+            log.info("Associando usuário {} com cliente {}", user.getId(), client.getId());
+            userClientRepository.save(new UserClient(user.getId(), client.getId()));
         }
 
         Property property = new Property();
@@ -53,7 +57,7 @@ public class PropertyService {
         property.setClientId(client.getId());
 
         Property saved = propertyRepository.save(property);
-
+        log.info("Propriedade salva com sucesso: {}", saved.getId());
         return new PropertyResponse(
                 saved.getId(),
                 saved.getName(),

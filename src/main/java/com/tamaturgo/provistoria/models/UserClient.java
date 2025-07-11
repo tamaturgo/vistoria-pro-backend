@@ -9,6 +9,6 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 public class UserClient {
-    private UUID client_id;
-    private UUID user_id;
+    private UUID userId;
+    private UUID clientId;
 }

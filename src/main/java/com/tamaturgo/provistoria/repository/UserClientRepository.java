@@ -24,8 +24,8 @@ public class UserClientRepository {
 
     public void save(UserClient userClient) {
         dsl.insertInto(UsersClients.USERS_CLIENTS)
-                .set(UsersClients.USERS_CLIENTS.USER_ID, userClient.getUser_id())
-                .set(UsersClients.USERS_CLIENTS.CLIENT_ID, userClient.getClient_id())
+                .set(UsersClients.USERS_CLIENTS.USER_ID, userClient.getUserId())
+                .set(UsersClients.USERS_CLIENTS.CLIENT_ID, userClient.getClientId())
                 .onConflictDoNothing()
                 .execute();
     }

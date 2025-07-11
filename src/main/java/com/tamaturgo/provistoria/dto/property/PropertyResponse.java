@@ -1,5 +1,6 @@
 package com.tamaturgo.provistoria.dto.property;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.tamaturgo.provistoria.dto.client.ClientDTO;
 import com.tamaturgo.provistoria.dto.client.ClientResponse;
 
@@ -18,6 +19,8 @@ public record  PropertyResponse(
     String tower,
     List<String> tags,
     ClientResponse client,
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     LocalDateTime createdAt,
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     LocalDateTime updatedAt
 ) {}
